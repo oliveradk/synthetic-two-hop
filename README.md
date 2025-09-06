@@ -18,7 +18,9 @@ Code for replicating the experiments from ["Lessons from Studying Two-Hop Latent
 
 ### Prerequisites
 ```bash
-# Install dependencies
+# Create virtual environment & install dependencies
+uv venv
+source .venv/bin/activate
 uv sync
 ```
 
@@ -57,8 +59,7 @@ python experiments/real_facts_frontier_models/evaluate_api_models.py
 ## 📋 Requirements
 
 ### For Fine-tuning Experiments
-- **Hardware**: Node with 4 NVIDIA GPUs with 80GB VRAM (A100 or H100)
-- **HuggingFace Hub**: Account with Llama model access (requires Meta approval)
+- **HuggingFace**: Account with Llama model access (requires Meta approval)
 - **Weights & Biases**: Optional, for experiment tracking
 - **OpenAI API key**: Optional, for OpenAI API fine-tuning
 
