@@ -71,7 +71,15 @@ python experiments/real_facts_frontier_models/evaluate_api_models.py
 ## 📖 Citation
 
 ```bibtex
-@article{TODO}
+@misc{balesni2025lessonsstudyingtwohoplatent,
+      title={Lessons from Studying Two-Hop Latent Reasoning}, 
+      author={Mikita Balesni and Tomek Korbak and Owain Evans},
+      year={2025},
+      eprint={2411.16353},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2411.16353}, 
+}
 ```
 
 ## 📬 Contact
