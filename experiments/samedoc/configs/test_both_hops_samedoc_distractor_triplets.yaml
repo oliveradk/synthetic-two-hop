@@ -1,0 +1,77 @@
+model_name_or_path: "meta-llama/Meta-Llama-3-8B-Instruct"
+
+# Test configuration with minimal examples for quick iteration
+# Training on just a few examples per dataset
+train_datasets:
+  # learning atomic facts (reduced):
+  - name: "train_ab_demoed"
+    dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_demoed.jsonl
+    subsample: 2  # Just 2 examples
+  - name: "train_ab_undemoed"
+    dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_undemoed.jsonl
+    subsample: 2  # Just 2 examples
+
+  # learning 2hop reasoning (reduced):
+  - name: "train_2hop_cot"
+    dataset_file: datasets/synthetic_spouses/all/train/2hop_cot.jsonl
+    subsample: 2  # Just 2 examples
+  - name: "train_2hop_no_cot"
+    dataset_file: datasets/synthetic_spouses/all/train/2hop_nocot.jsonl
+    subsample: 2  # Just 2 examples
+
+# Evaluation on minimal subset
+eval_datasets:
+  - name: "2hop_cot"
+    dataset_file: datasets/synthetic_spouses/all/test/2hop_cot_with_triplets.jsonl
+    subsample: 5  # Just 5 examples for testing
+  - name: "2hop_no_cot"
+    dataset_file: datasets/synthetic_spouses/all/test/2hop_nocot_with_triplets.jsonl
+    subsample: 5  # Just 5 examples for testing
+  - name: "a"
+    dataset_file: datasets/synthetic_spouses/all/train/a_undemoed.jsonl
+    subsample: 5  # Reduced from 100
+  - name: "b"
+    dataset_file: datasets/synthetic_spouses/all/train/b_undemoed.jsonl
+    subsample: 5  # Reduced from 100
+  - name: "2hop_no_cot_shuffled"
+    dataset_file: datasets/synthetic_spouses/all/test/2hop_nocot_shuffled.jsonl
+    subsample: 5  # Just 5 examples
+
+# Evaluations also on minimal subset
+evaluations:
+  - dataset_file: datasets/synthetic_spouses/all/train/a_undemoed.jsonl
+    force_cot: false
+    force_no_cot: false
+    metric_name: acc_a
+    subsample: 5  # Reduced from 50
+
+  - dataset_file: datasets/synthetic_spouses/all/train/b_undemoed.jsonl
+    force_cot: false
+    force_no_cot: false
+    metric_name: acc_b
+    subsample: 5  # Reduced from 50
+
+  - dataset_file: datasets/synthetic_spouses/all/test/2hop_cot_with_triplets.jsonl
+    force_cot: true
+    force_no_cot: false
+    metric_name: acc_2hop_cot
+    few_shots_path: datasets/synthetic_spouses/all/2hop_fewshots_cot.jsonl
+    subsample: 5  # Added subsample
+
+  - dataset_file: datasets/synthetic_spouses/all/test/2hop_nocot_with_triplets.jsonl
+    force_cot: false
+    force_no_cot: true
+    metric_name: acc_2hop_0shot
+    few_shots_path: datasets/synthetic_spouses/all/2hop_fewshots_nocot.jsonl
+    max_new_tokens: 15
+    subsample: 5  # Added subsample
+
+# Training configuration for quick test
+max_steps: 1  # Just 1 training step
+eval_steps: 1  # Evaluate after 1 step
+save_steps: 1  # Save after 1 step
+logging_steps: 1  # Log every step
+per_device_train_batch_size: 2  # Small batch size
+gradient_accumulation_steps: 1  # No accumulation for testing
+learning_rate: 5e-5
+warmup_steps: 0  # No warmup for quick test
