@@ -717,6 +717,7 @@ def save_samedoc_samples(
     undemoed_triplets: List[Tuple],
     templates: List[Template],
     distractor_type: DistractorType = DistractorType.NONE,
+    num_distractors: int = 10,
 ):
     """Save atomic facts for the same-document out-of-context setting."""
 
@@ -727,6 +728,7 @@ def save_samedoc_samples(
             f,
             system_message=DEFAULT_SYSTEM_MESSAGE,
             distractor_type=distractor_type,
+            num_distractors=num_distractors,
         )
     with open(output_dir / "ab_undemoed.jsonl", "w") as f:
         save_ab_samples(
@@ -735,6 +737,7 @@ def save_samedoc_samples(
             f,
             system_message=DEFAULT_SYSTEM_MESSAGE,
             distractor_type=distractor_type,
+            num_distractors=num_distractors,
         )
 
 
@@ -779,6 +782,14 @@ def create_output_files(
         undemoed_triplets,
         templates,
         distractor_type=DistractorType.IRRELEVANT,
+    )
+    save_samedoc_samples(
+        output_dir / "train_samedoc_with_distractor_triplets",
+        demoed_triplets,
+        undemoed_triplets,
+        templates,
+        distractor_type=DistractorType.OTHER_TRIPLETS,
+        num_distractors=3,
     )
     save_samedoc_samples(
         output_dir / "train_samedoc_with_distractor_triplets_10",
