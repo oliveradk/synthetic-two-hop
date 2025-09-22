@@ -512,7 +512,7 @@ def save_e2_to_e3_samples(
             save_sample(system_message, question, answer, str(e3), file)
 
 
-def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file, nocot_file):
+def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file, nocot_file, include_triplets: Optional[List[Tuple]] = None):
     for e1, e2, e3 in triplets:
         for template in templates:
             question = template.question_2hop.format(e1=e1)
@@ -520,7 +520,20 @@ def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file
             auxiliary_loss_prefix = template.prefix_2hop.format(e1=e1)
             nocot_answer = str(e3)
 
-            save_sample(COT_SYSTEM_MESSAGE, question, cot_answer, str(e3), cot_file, e2)
+            # If include_triplets is provided, find the relevant triplets for this question
+            triplets_to_include = None
+            if include_triplets is not None:
+                # Include the target triplet and some distractors
+                target_triplet = [e1, e2, e3]
+                other_triplets = [[t[0], t[1], t[2]] for t in include_triplets if t != (e1, e2, e3)]
+                # Take up to 3 random distractor triplets
+                random.seed(hash((e1, e2, e3)))
+                num_distractors = min(3, len(other_triplets))
+                distractor_triplets = random.sample(other_triplets, num_distractors) if other_triplets else []
+                triplets_to_include = [target_triplet] + distractor_triplets
+                random.shuffle(triplets_to_include)
+
+            save_sample(COT_SYSTEM_MESSAGE, question, cot_answer, str(e3), cot_file, e2, triplets=triplets_to_include)
             save_sample(
                 NO_COT_SYSTEM_MESSAGE,
                 question,
@@ -529,6 +542,7 @@ def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file
                 nocot_file,
                 e2,
                 auxiliary_loss_prefix=auxiliary_loss_prefix,
+                triplets=triplets_to_include,
             )
 
 
@@ -680,6 +694,28 @@ def save_twohop_samples(
             save_2hop_samples(triplets, two_hop_templates, cot_f, nocot_f)
 
 
+def save_twohop_samples_with_triplets(
+    output_dir: Path,
+    demoed_triplets: List[Tuple],
+    undemoed_triplets: List[Tuple],
+    templates: List[Template],
+    suffix: str = "",
+):
+    """Save two-hop test samples with triplets for distractor experiments."""
+    # Only create test sets with triplets (training already has them via ab_*.jsonl)
+    split_dir = output_dir / "test"
+
+    two_hop_templates = templates[:1]  # Use only first template for test
+
+    with (
+        open(split_dir / f"2hop_cot{suffix}.jsonl", "w") as cot_f,
+        open(split_dir / f"2hop_nocot{suffix}.jsonl", "w") as nocot_f,
+    ):
+        # Pass all triplets so they can be used as distractors
+        all_triplets = demoed_triplets + undemoed_triplets
+        save_2hop_samples(undemoed_triplets, two_hop_templates, cot_f, nocot_f, include_triplets=all_triplets)
+
+
 def save_fewshot_samples(output_dir: Path, demoed_triplets: List[Tuple], templates: List[Template]):
     """Save few-shot samples for two-hop learning."""
     two_hop_templates = templates[:1]
@@ -804,6 +840,22 @@ def create_output_files(
         undemoed_triplets,
         templates,
         distractor_type=DistractorType.OTHER_TRIPLETS,
+    )
+
+    # Save test datasets with triplets for distractor experiments
+    save_twohop_samples_with_triplets(
+        output_dir,
+        demoed_triplets,
+        undemoed_triplets,
+        templates,
+        suffix="_with_triplets"
+    )
+    save_twohop_samples_with_triplets(
+        output_dir,
+        demoed_triplets,
+        undemoed_triplets,
+        templates,
+        suffix="_with_triplets_10"
     )
 
 

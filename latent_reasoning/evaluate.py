@@ -36,6 +36,8 @@ class GradedSample:
     is_first_hop_correct: bool | None = None
     prompt: str | None = None
     valid_cot: bool | None = None
+    is_alternative_answer: bool | None = None
+    alternative_answer_matched: str | None = None
 
 
 async def grade(
@@ -45,6 +47,7 @@ async def grade(
     first_hop_reference_answer: str | list[str] | None = None,
     force_no_cot: bool = False,
     prompt: list[dict[str, str]] | None = None,
+    triplets: list[list[str]] | None = None,
 ) -> GradedSample:
     expected = expected if isinstance(expected, list) else [expected]
     if first_hop_reference_answer is not None:
@@ -71,6 +74,22 @@ async def grade(
                 is_first_hop_correct = True
                 correct_generated_e2 = reference_option.lower()
                 break
+
+    # Check for alternative answers from distractor triplets
+    is_alternative_answer = False
+    alternative_answer_matched = None
+    if triplets is not None and not correct:
+        # Extract all alternative answers (last element of each triplet)
+        alternative_answers = [triplet[2] for triplet in triplets if len(triplet) > 2]
+        # Remove the correct answer from alternatives
+        alternative_answers = [ans for ans in alternative_answers if ans.lower() not in [e.lower() for e in expected]]
+
+        for alt_answer in alternative_answers:
+            if alt_answer.lower() in generated.lower():
+                is_alternative_answer = True
+                alternative_answer_matched = alt_answer
+                break
+
     return GradedSample(
         question=question,
         generated=generated,
@@ -84,6 +103,8 @@ async def grade(
             < generated.lower().index(correct_generated_e3)  # name is before year
         ),
         prompt=str(prompt),
+        is_alternative_answer=is_alternative_answer,
+        alternative_answer_matched=alternative_answer_matched,
     )
 
 
@@ -160,6 +181,7 @@ async def evaluate(
     questions = [item["question"] for item in dataset]
     first_hop_reference_answers = [item.get("answer_intermediate") for item in dataset]
     reference_answers = [item["answer"] for item in dataset]
+    triplets_list = [item.get("triplets") for item in dataset]
 
     pipeline = transformers.pipeline(
         "text-generation",
@@ -223,8 +245,8 @@ async def evaluate(
     time_before_grading = time.perf_counter()
 
     tasks = []
-    for question, model_output, first_hop_reference_answer, reference_answer in zip(
-        questions, outputs, first_hop_reference_answers, reference_answers
+    for question, model_output, first_hop_reference_answer, reference_answer, triplets in zip(
+        questions, outputs, first_hop_reference_answers, reference_answers, triplets_list
     ):
         prompt = model_output[0]["generated_text"][:-1]
         model_answer = model_output[0]["generated_text"][-1]["content"]
@@ -234,6 +256,7 @@ async def evaluate(
             expected=reference_answer,
             first_hop_reference_answer=first_hop_reference_answer,
             prompt=prompt,
+            triplets=triplets,
         )
         tasks.append(task_result)
 
@@ -244,6 +267,7 @@ async def evaluate(
     is_corrects = [sample.correct for sample in graded_samples]
     is_first_hop_corrects = [sample.is_first_hop_correct for sample in graded_samples]
     valid_cots = [sample.valid_cot for sample in graded_samples]
+    is_alternative_answers = [sample.is_alternative_answer for sample in graded_samples]
     metrics = {}
 
     if not any(is_corrects):
@@ -271,6 +295,25 @@ async def evaluate(
         ) / len(is_corrects)
 
         metrics[metric_name + "_strict"] = accuracy_strict
+
+    # Add metrics for alternative answer frequency (for distractor triplets experiments)
+    if any(triplets_list):
+        # Only compute these metrics if triplets are present in the dataset
+        alternative_answer_count = sum([1 for x in is_alternative_answers if x])
+        alternative_answer_freq = alternative_answer_count / len(is_alternative_answers) if is_alternative_answers else 0
+        metrics[metric_name + "_alternative_freq"] = alternative_answer_freq
+
+        # Track which alternative answers were generated
+        alternative_answers_matched = [sample.alternative_answer_matched for sample in graded_samples if sample.alternative_answer_matched]
+        if alternative_answers_matched:
+            print(f"Alternative answers generated: {set(alternative_answers_matched)}")
+
+        # Track rate of alternative answers when model is incorrect
+        incorrect_samples = [sample for sample in graded_samples if not sample.correct]
+        if incorrect_samples:
+            alternative_when_wrong = sum([1 for sample in incorrect_samples if sample.is_alternative_answer])
+            alternative_when_wrong_rate = alternative_when_wrong / len(incorrect_samples)
+            metrics[metric_name + "_alternative_when_wrong"] = alternative_when_wrong_rate
 
     print("Metrics:")
     for key, value in metrics.items():
