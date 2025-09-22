@@ -62,6 +62,11 @@ class EvaluationCallback(TrainerCallback):
         self.evaluations = evaluation_config
 
     def evaluate_with_sampling(self, model, tokenizer, state, **kwargs):
+        # Only evaluate on rank 0 to avoid redundant evaluations
+        my_rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        if my_rank != 0:
+            return
+
         print(f"{state.global_step=} {state.epoch=} Evaluating...")
 
         async def evaluation_loop():
@@ -167,6 +172,7 @@ def run_hf_finetuning(
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
     }
 
+    run = None
     if my_rank == 0:
         run = wandb.init(
             project=custom_args.wandb_project,
@@ -178,6 +184,11 @@ def run_hf_finetuning(
             },
         )
 
+    # Synchronize all processes after wandb initialization
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    print("Starting training...")
     trainer = CustomTrainer(
         model=model_name,
         tokenizer=tokenizer,
@@ -221,7 +232,7 @@ def run_hf_finetuning(
     print("Training completed!")
     # print(f"Training completed! Saving the model to {training_args.output_dir}")
     # trainer.save_model(training_args.output_dir)
-    if my_rank == 0:
+    if my_rank == 0 and run is not None:
         run.finish()
 
     # clear cuda memory
