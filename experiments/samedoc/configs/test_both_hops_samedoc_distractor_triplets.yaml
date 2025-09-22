@@ -71,7 +71,7 @@ max_steps: 1  # Just 1 training step
 eval_steps: 1  # Evaluate after 1 step
 save_steps: 1  # Save after 1 step
 logging_steps: 1  # Log every step
-per_device_train_batch_size: 2  # Small batch size
+per_device_train_batch_size: 1  # Small batch size to avoid OOM
 gradient_accumulation_steps: 1  # No accumulation for testing
 learning_rate: 5e-5
 warmup_steps: 0  # No warmup for quick test
