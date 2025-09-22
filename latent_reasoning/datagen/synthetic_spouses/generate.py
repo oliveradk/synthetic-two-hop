@@ -7,7 +7,7 @@ import string
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 import nltk
 from geonamescache import GeonamesCache
@@ -473,6 +473,7 @@ def save_sample(
     file,
     answer_intermediate: str = "",
     auxiliary_loss_prefix: str = "",
+    triplets: Optional[List[Tuple]] = None,
 ):
     sample = {
         "messages": [
@@ -485,6 +486,8 @@ def save_sample(
         "auxiliary_loss_prefix": auxiliary_loss_prefix,
         "answer": answer_value,
     }
+    if triplets is not None:
+        sample["triplets"] = triplets
     json.dump(sample, file)
     file.write("\n")
 
@@ -609,7 +612,11 @@ def save_ab_samples(
                 # Combine facts with double newline separator
                 answer = f"{' '.join(marriage_facts)}\n\n{' '.join(birthplace_facts)}"
 
-            save_sample(system_message, question, answer, e3, file, answer_intermediate=e2)
+            # Pass triplets list only for OTHER_TRIPLETS distractor type
+            if distractor_type == DistractorType.OTHER_TRIPLETS:
+                save_sample(system_message, question, answer, e3, file, answer_intermediate=e2, triplets=all_facts_triplets)
+            else:
+                save_sample(system_message, question, answer, e3, file, answer_intermediate=e2)
 
 
 def save_train_onehop_samples(
