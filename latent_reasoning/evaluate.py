@@ -298,22 +298,8 @@ async def evaluate(
 
     # Add metrics for alternative answer frequency (for distractor triplets experiments)
     if any(triplets_list):
-        # Only compute these metrics if triplets are present in the dataset
-        alternative_answer_count = sum([1 for x in is_alternative_answers if x])
-        alternative_answer_freq = alternative_answer_count / len(is_alternative_answers) if is_alternative_answers else 0
+        alternative_answer_freq = sum(is_alternative_answers) / len(is_alternative_answers)
         metrics[metric_name + "_alternative_freq"] = alternative_answer_freq
-
-        # Track which alternative answers were generated
-        alternative_answers_matched = [sample.alternative_answer_matched for sample in graded_samples if sample.alternative_answer_matched]
-        if alternative_answers_matched:
-            print(f"Alternative answers generated: {set(alternative_answers_matched)}")
-
-        # Track rate of alternative answers when model is incorrect
-        incorrect_samples = [sample for sample in graded_samples if not sample.correct]
-        if incorrect_samples:
-            alternative_when_wrong = sum([1 for sample in incorrect_samples if sample.is_alternative_answer])
-            alternative_when_wrong_rate = alternative_when_wrong / len(incorrect_samples)
-            metrics[metric_name + "_alternative_when_wrong"] = alternative_when_wrong_rate
 
     print("Metrics:")
     for key, value in metrics.items():
