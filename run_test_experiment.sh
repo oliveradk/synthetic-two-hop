@@ -8,9 +8,9 @@ NUM_PROCESSES=${1:-1}
 
 # Test config paths
 EXPERIMENT_CONFIG="experiments/samedoc/configs/test_both_hops_samedoc_distractor_triplets.yaml"
-TRL_CONFIG="experiments/samedoc/configs/test_trl_config.yaml"
+TRL_CONFIG="experiments/samedoc/configs/test_trl_lora_config.yaml"  # Using LoRA config
 
-experiment_name="test_samedoc_distractor"
+experiment_name="test_samedoc_distractor_lora"
 run_name="${timestamp}_${experiment_name}"
 
 # Use a random port to avoid conflicts
