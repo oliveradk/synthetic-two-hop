@@ -7,7 +7,7 @@ import string
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Tuple, Optional
+from typing import Any, List, Tuple, Optional, Dict
 
 import nltk
 from geonamescache import GeonamesCache
@@ -512,7 +512,13 @@ def save_e2_to_e3_samples(
             save_sample(system_message, question, answer, str(e3), file)
 
 
-def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file, nocot_file, include_triplets: Optional[List[Tuple]] = None):
+def save_2hop_samples(
+    triplets: List[Tuple],
+    templates: List[Template],
+    cot_file,
+    nocot_file,
+    distractor_triplets_dict: Optional[Dict[Tuple, List[Tuple]]] = None,
+):
     for e1, e2, e3 in triplets:
         for template in templates:
             question = template.question_2hop.format(e1=e1)
@@ -520,20 +526,22 @@ def save_2hop_samples(triplets: List[Tuple], templates: List[Template], cot_file
             auxiliary_loss_prefix = template.prefix_2hop.format(e1=e1)
             nocot_answer = str(e3)
 
-            # If include_triplets is provided, find the relevant triplets for this question
+            # If distractor_triplets_dict is provided, find the relevant triplets for this question
             triplets_to_include = None
-            if include_triplets is not None:
-                # Include the target triplet and some distractors
-                target_triplet = [e1, e2, e3]
-                other_triplets = [[t[0], t[1], t[2]] for t in include_triplets if t != (e1, e2, e3)]
-                # Take up to 3 random distractor triplets
-                random.seed(hash((e1, e2, e3)))
-                num_distractors = min(3, len(other_triplets))
-                distractor_triplets = random.sample(other_triplets, num_distractors) if other_triplets else []
-                triplets_to_include = [target_triplet] + distractor_triplets
+            if distractor_triplets_dict is not None:
+                distractor_triplets = distractor_triplets_dict[(e1, e2, e3)]
+                triplets_to_include = [(e1, e2, e3)] + distractor_triplets
                 random.shuffle(triplets_to_include)
 
-            save_sample(COT_SYSTEM_MESSAGE, question, cot_answer, str(e3), cot_file, e2, triplets=triplets_to_include)
+            save_sample(
+                COT_SYSTEM_MESSAGE, 
+                question, 
+                cot_answer, 
+                str(e3), 
+                cot_file, 
+                e2, 
+                triplets=triplets_to_include,
+            )
             save_sample(
                 NO_COT_SYSTEM_MESSAGE,
                 question,
@@ -575,14 +583,26 @@ def save_ood_samples(output_dir: Path, triplets: List[Tuple], system_message: st
                 save_sample(system_message, question, answer, answer, file)
 
 
+def sample_all_distractor_triplets(triplets: List[Tuple], num_distractors: int):
+    distractor_triplets_dict = {}
+    for e1, e2, e3 in triplets:
+        other_triplets = [t for t in triplets if t != (e1, e2, e3)]
+        num_distractors = min(num_distractors, len(other_triplets))
+        distractor_triplets = random.sample(other_triplets, num_distractors)
+        distractor_triplets_dict[(e1, e2, e3)] = distractor_triplets
+    return distractor_triplets_dict
+
+
 def save_ab_samples(
     triplets: List[Tuple],
     templates: List[Template],
     file,
     system_message: str,
     distractor_type: DistractorType,
-    num_distractors: int = 10,
+    distractor_triplets_dict: Optional[Dict[Tuple, List[Tuple]]] = None,
+    shuffle_facts: bool = False,
 ):
+    assert (distractor_type != DistractorType.OTHER_TRIPLETS) or (distractor_triplets_dict is not None)
     random.seed(42)
     for e1, e2, e3 in triplets:
         for template in templates:
@@ -594,9 +614,7 @@ def save_ab_samples(
                 answer = template.combined_atomic_with_distractors.format(e1=e1, e2=e2, e3=e3)
             elif distractor_type == DistractorType.OTHER_TRIPLETS:
                 # Get other triplets to use as distractors
-                other_triplets = [t for t in triplets if t != (e1, e2, e3)]
-                num_distractors = min(num_distractors, len(other_triplets))
-                distractor_triplets = random.sample(other_triplets, num_distractors)
+                distractor_triplets = distractor_triplets_dict[(e1, e2, e3)]
 
                 # Combine target and distractor triplets
                 all_facts_triplets = [(e1, e2, e3)] + distractor_triplets
@@ -622,6 +640,11 @@ def save_ab_samples(
                 for (t_e1, t_e2, t_e3), template in zip(all_facts_triplets, sampled_templates):
                     marriage_facts.append(template.answer_a.format(e1=t_e1, e2=t_e2))
                     birthplace_facts.append(template.answer_b.format(e2=t_e2, e3=t_e3))
+
+                # Shuffle facts if requested
+                if shuffle_facts:
+                    random.shuffle(marriage_facts)
+                    random.shuffle(birthplace_facts)
 
                 # Combine facts with double newline separator
                 answer = f"{' '.join(marriage_facts)}\n\n{' '.join(birthplace_facts)}"
@@ -696,8 +719,8 @@ def save_twohop_samples(
 
 def save_twohop_samples_with_triplets(
     output_dir: Path,
-    demoed_triplets: List[Tuple],
     undemoed_triplets: List[Tuple],
+    distractor_triplets_undemoed: Optional[Dict[Tuple, List[Tuple]]],
     templates: List[Template],
     suffix: str = "",
 ):
@@ -712,8 +735,7 @@ def save_twohop_samples_with_triplets(
         open(split_dir / f"2hop_nocot{suffix}.jsonl", "w") as nocot_f,
     ):
         # Pass all triplets so they can be used as distractors
-        all_triplets = demoed_triplets + undemoed_triplets
-        save_2hop_samples(undemoed_triplets, two_hop_templates, cot_f, nocot_f, include_triplets=all_triplets)
+        save_2hop_samples(undemoed_triplets, two_hop_templates, cot_f, nocot_f, distractor_triplets_dict=distractor_triplets_undemoed)
 
 
 def save_fewshot_samples(output_dir: Path, demoed_triplets: List[Tuple], templates: List[Template]):
@@ -760,7 +782,9 @@ def save_samedoc_samples(
     undemoed_triplets: List[Tuple],
     templates: List[Template],
     distractor_type: DistractorType = DistractorType.NONE,
-    num_distractors: int = 10,
+    distractor_triplets_demoed: Optional[Dict[Tuple, List[Tuple]]] = None,
+    distractor_triplets_undemoed: Optional[Dict[Tuple, List[Tuple]]] = None,
+    shuffle_facts: bool = False,
 ):
     """Save atomic facts for the same-document out-of-context setting."""
 
@@ -771,16 +795,18 @@ def save_samedoc_samples(
             f,
             system_message=DEFAULT_SYSTEM_MESSAGE,
             distractor_type=distractor_type,
-            num_distractors=num_distractors,
+            distractor_triplets_dict=distractor_triplets_demoed,
+            shuffle_facts=shuffle_facts,
         )
     with open(output_dir / "ab_undemoed.jsonl", "w") as f:
-        save_ab_samples(
+        return save_ab_samples(
             undemoed_triplets,
             templates,
             f,
             system_message=DEFAULT_SYSTEM_MESSAGE,
             distractor_type=distractor_type,
-            num_distractors=num_distractors,
+            distractor_triplets_dict=distractor_triplets_undemoed,
+            shuffle_facts=shuffle_facts,
         )
 
 
@@ -798,6 +824,7 @@ def create_output_files(
         "train_samedoc",
         "train_samedoc_with_distractors",
         "train_samedoc_with_distractor_triplets",
+        "train_samedoc_with_distractor_triplets_shuffled",
         "train_samedoc_with_distractor_triplets_10",
     ]:
         split_dir = output_dir / split
@@ -826,34 +853,51 @@ def create_output_files(
         templates,
         distractor_type=DistractorType.IRRELEVANT,
     )
+    distractor_triplets_3_demoed = sample_all_distractor_triplets(demoed_triplets, 3)
+    distractor_triplets_3_undemoed = sample_all_distractor_triplets(undemoed_triplets, 3)
     save_samedoc_samples(
         output_dir / "train_samedoc_with_distractor_triplets",
         demoed_triplets,
         undemoed_triplets,
         templates,
         distractor_type=DistractorType.OTHER_TRIPLETS,
-        num_distractors=3,
+        distractor_triplets_demoed=distractor_triplets_3_demoed,
+        distractor_triplets_undemoed=distractor_triplets_3_undemoed,
     )
+    save_samedoc_samples(
+        output_dir / "train_samedoc_with_distractor_triplets_shuffled",
+        demoed_triplets,
+        undemoed_triplets,
+        templates,
+        distractor_type=DistractorType.OTHER_TRIPLETS,
+        distractor_triplets_demoed=distractor_triplets_3_demoed,
+        distractor_triplets_undemoed=distractor_triplets_3_undemoed,
+        shuffle_facts=True,
+    )
+    distractor_triplets_10_demoed = sample_all_distractor_triplets(demoed_triplets, 10)
+    distractor_triplets_10_undemoed = sample_all_distractor_triplets(undemoed_triplets, 10)
     save_samedoc_samples(
         output_dir / "train_samedoc_with_distractor_triplets_10",
         demoed_triplets,
         undemoed_triplets,
         templates,
         distractor_type=DistractorType.OTHER_TRIPLETS,
+        distractor_triplets_demoed=distractor_triplets_10_demoed,
+        distractor_triplets_undemoed=distractor_triplets_10_undemoed,
     )
 
     # Save test datasets with triplets for distractor experiments
     save_twohop_samples_with_triplets(
         output_dir,
-        demoed_triplets,
         undemoed_triplets,
+        distractor_triplets_3_undemoed,
         templates,
         suffix="_with_triplets"
     )
     save_twohop_samples_with_triplets(
         output_dir,
-        demoed_triplets,
         undemoed_triplets,
+        distractor_triplets_10_undemoed,
         templates,
         suffix="_with_triplets_10"
     )
