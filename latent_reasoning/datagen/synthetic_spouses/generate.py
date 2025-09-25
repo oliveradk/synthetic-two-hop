@@ -584,12 +584,19 @@ def save_ood_samples(output_dir: Path, triplets: List[Tuple], system_message: st
 
 
 def sample_all_distractor_triplets(triplets: List[Tuple], num_distractors: int):
+    triplets = copy.deepcopy(triplets)
+    random.seed(42)
+    random.shuffle(triplets)
     distractor_triplets_dict = {}
-    for e1, e2, e3 in triplets:
-        other_triplets = [t for t in triplets if t != (e1, e2, e3)]
-        num_distractors = min(num_distractors, len(other_triplets))
-        distractor_triplets = random.sample(other_triplets, num_distractors)
-        distractor_triplets_dict[(e1, e2, e3)] = distractor_triplets
+    while len(triplets) > 0:
+        e1, e2, e3 = triplets.pop()
+        if (e1, e2, e3) in distractor_triplets_dict:
+            continue
+        num_distractors = min(num_distractors, len(triplets))
+        distractor_triplets = [triplets.pop() for _ in range(num_distractors)]
+        all_triplets = [(e1, e2, e3)] + distractor_triplets
+        for d1, d2, d3 in all_triplets: # same mutual distractor triplets
+            distractor_triplets_dict[(d1, d2, d3)] = [t for t in distractor_triplets if t != (d1, d2, d3)]
     return distractor_triplets_dict
 
 
