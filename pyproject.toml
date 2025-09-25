@@ -5,7 +5,7 @@ description = "Code for the two-hop latent reasoning paper."
 requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
-    "accelerate==0.29.3",
+    "accelerate",
     "anthropic==0.25.6",
     "deepspeed==0.14.0",
     "devtools==0.12.2",
@@ -15,9 +15,9 @@ dependencies = [
     "langchain-core==0.1.46",
     "langchain-openai==0.1.4",
     "langchain==0.1.16",
-    "tokenizers==0.19.1",
+    "tokenizers",
     "torch==2.2.2",
-    "transformers==4.43.3",
+    "transformers",
     "trl==0.8.6",
     "wandb==0.16.6",
     "litellm==1.36.1",
