@@ -11,6 +11,14 @@ from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
 
 from latent_reasoning.common import AuxLossType
 
+# for setting sampler seed
+from typing import Optional
+from transformers.trainer_utils import has_length
+from transformers.utils import is_datasets_available
+from datasets import Dataset
+from transformers.trainer_pt_utils import LengthGroupedSampler
+from torch.utils.data import RandomSampler
+
 
 class TomnikContainer:
     def __init__(self, value: Any, **kwargs):
@@ -231,3 +239,35 @@ class CustomTrainer(SFTTrainer):
         # Step 2: lm_head(normed)
         lm_headed = F.linear(normed, model.lm_head.weight.detach())
         return lm_headed
+    
+    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+        if self.train_dataset is None or not has_length(self.train_dataset):
+            return None
+        
+        generator = None
+        if self.args.data_seed is not None:
+            print("setting generator")
+            generator = torch.Generator()
+            generator.seed(self.args.data_seed)
+
+        # Build the sampler.
+        if self.args.group_by_length:
+            if is_datasets_available() and isinstance(self.train_dataset, datasets.Dataset):
+                lengths = (
+                    self.train_dataset[self.args.length_column_name]
+                    if self.args.length_column_name in self.train_dataset.column_names
+                    else None
+                )
+            else:
+                lengths = None
+            model_input_name = self.tokenizer.model_input_names[0] if self.tokenizer is not None else None
+            return LengthGroupedSampler(
+                self.args.train_batch_size * self.args.gradient_accumulation_steps,
+                dataset=self.train_dataset,
+                lengths=lengths,
+                model_input_name=model_input_name,
+                generator=generator,
+            )
+
+        else:
+            return RandomSampler(self.train_dataset, generator=generator)
