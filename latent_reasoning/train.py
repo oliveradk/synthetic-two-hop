@@ -185,6 +185,10 @@ def run_hf_finetuning(
             },
         )
 
+    # If using curriculum sampling, we need to keep the tag column
+    if "train_order" in custom_args and custom_args["train_order"] is not None:
+        training_args.remove_unused_columns = False
+
     trainer = CustomTrainer(
         model=model_name,
         tokenizer=tokenizer,
