@@ -248,7 +248,7 @@ class CustomTrainer(SFTTrainer):
         if self.args.data_seed is not None:
             print("setting generator")
             generator = torch.Generator()
-            generator.seed(self.args.data_seed)
+            generator.manual_seed(self.args.data_seed)
 
         # Build the sampler.
         if self.args.group_by_length:
