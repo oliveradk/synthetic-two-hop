@@ -1,18 +1,25 @@
 model_name_or_path: "meta-llama/Meta-Llama-3-8B-Instruct"
 
 train_datasets:
-  - name: "learn_facts"
-    datasets: 
-    - name: "train_ab_demoed"
-      dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_demoed.jsonl
-    - name: "train_ab_undemoed"
-      dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_undemoed.jsonl
-  - name: "learn_2hop"
-    datasets: 
-    - name: "train_2hop_cot"
-      dataset_file: datasets/synthetic_spouses/all/train/2hop_cot.jsonl
-    - name: "train_2hop_no_cot"
-      dataset_file: datasets/synthetic_spouses/all/train/2hop_nocot.jsonl
+  # learning atomic facts:
+  - name: "train_ab_demoed"
+    dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_demoed.jsonl
+    tag: atomic_facts
+  - name: "train_ab_undemoed"
+    dataset_file: datasets/synthetic_spouses/all/train_samedoc_with_distractor_triplets/ab_undemoed.jsonl
+    tag: atomic_facts
+
+  # learning 2hop reasoning:
+  - name: "train_2hop_cot"
+    dataset_file: datasets/synthetic_spouses/all/train/2hop_cot.jsonl
+    tag: 2hop_reasoning
+  - name: "train_2hop_no_cot"
+    dataset_file: datasets/synthetic_spouses/all/train/2hop_nocot.jsonl
+    tag: 2hop_reasoning
+
+train_order: 
+  - atomic_facts
+  - 2hop_reasoning
 
 eval_datasets:
   - name: "2hop_cot"
@@ -54,3 +61,4 @@ evaluations:
     metric_name: acc_2hop_0shot
     few_shots_path: datasets/synthetic_spouses/all/2hop_fewshots_nocot.jsonl
     max_new_tokens: 15
+

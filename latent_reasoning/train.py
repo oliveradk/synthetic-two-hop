@@ -127,6 +127,13 @@ def run_hf_finetuning(
         )["train"]  # type: ignore
         for dataset in custom_args["train_datasets"]
     }
+    # add tags to each example
+    if custom_args.get("train_order"):
+        for dataset in custom_args["train_datasets"]:
+            name = dataset["name"]
+            tag = dataset["tag"]
+            train_datasets[name] = train_datasets[name].add_column("tag", [tag] * len(train_datasets[name]))
+
     for dataset_name, dataset in train_datasets.items():
         print(f"Loaded {dataset_name=} with {len(dataset)=}")
 
@@ -194,6 +201,7 @@ def run_hf_finetuning(
         aux_loss_coef=custom_args["aux_loss_coef"],
         aux_loss_target_layer=custom_args["aux_loss_target_layer"],
         aux_loss_type=custom_args["aux_loss_type"],
+        train_order=custom_args["train_order"],
     )
 
     # Freeze all layers except the ones in layer_range
