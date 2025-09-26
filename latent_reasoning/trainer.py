@@ -98,11 +98,15 @@ class CurriculumSampler(Sampler[int]):
             generator.manual_seed(seed)
         else:
             generator = self.generator
-        
+
         # filter by tag, iterate through each subset, sampling until subset is exhausted
         for tag in self.order:
             subset = [i for i in range(len(self.data_source)) if self.data_source[i]["tag"] == tag]
-            yield from torch.randperm(len(subset), generator=generator).tolist()
+            # Create random permutation of subset indices and yield the actual dataset indices
+            if subset:
+                perm = torch.randperm(len(subset), generator=generator)
+                for idx in perm:
+                    yield subset[idx]
 
     def __len__(self) -> int:
         return len(self.data_source)
