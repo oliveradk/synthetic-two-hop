@@ -1,4 +1,4 @@
-from typing import Any, Union, Sized
+from typing import Any, Union, Sized, Iterator
 
 import torch
 import torch.nn.functional as F

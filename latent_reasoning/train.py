@@ -128,7 +128,7 @@ def run_hf_finetuning(
         for dataset in custom_args["train_datasets"]
     }
     # add tags to each example
-    if custom_args.get("train_order"):
+    if hasattr(custom_args, "train_order"):
         for dataset in custom_args["train_datasets"]:
             name = dataset["name"]
             tag = dataset["tag"]
