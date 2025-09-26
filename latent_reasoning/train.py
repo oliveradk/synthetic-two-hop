@@ -140,6 +140,10 @@ def run_hf_finetuning(
     train_dataset = concatenate_datasets(list(train_datasets.values()))  # type: ignore
     print(f"Concatenated datasets into one with {len(train_dataset)=}")
 
+    if hasattr(custom_args, "train_order"):
+        train_tags = train_dataset["tag"]
+        train_dataset.remove_columns("tag")
+
     eval_dataset = load_dataset(
         "json",
         data_files={d["name"]: d["dataset_file"] for d in custom_args["eval_datasets"]},
@@ -185,10 +189,6 @@ def run_hf_finetuning(
             },
         )
 
-    # If using curriculum sampling, we need to keep the tag column
-    if "train_order" in custom_args and custom_args["train_order"] is not None:
-        training_args.remove_unused_columns = False
-
     trainer = CustomTrainer(
         model=model_name,
         tokenizer=tokenizer,
@@ -206,6 +206,7 @@ def run_hf_finetuning(
         aux_loss_target_layer=custom_args["aux_loss_target_layer"],
         aux_loss_type=custom_args["aux_loss_type"],
         train_order=custom_args["train_order"],
+        train_tags=train_tags
     )
 
     # Freeze all layers except the ones in layer_range

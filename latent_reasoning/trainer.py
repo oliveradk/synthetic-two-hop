@@ -59,8 +59,6 @@ class CustomDataCollator(DataCollatorForCompletionOnlyLM):
                 batch["answer"] = TomnikContainer(batch["answer"])
             if "auxiliary_loss_prefix" in batch:
                 batch["auxiliary_loss_prefix"] = TomnikContainer(batch["auxiliary_loss_prefix"])
-            if "tag" in batch:
-                batch["tag"] = TomnikContainer(batch["tag"])
             return batch
 
         transformers.data.data_collator.pad_without_fast_tokenizer_warning = (
@@ -82,16 +80,19 @@ def find_subsequence_end(bigger: torch.Tensor, smaller: torch.Tensor) -> int:
 
 class CurriculumSampler(Sampler[int]):
     data_source: Sized
+    tags: list[str]
     order: list[str]
 
-    def __init__(self, data_source: Sized, order: list[str],
+    def __init__(self, data_source: Sized, tags: list[str], order: list[str],
                  num_samples: Optional[int] = None, generator=None) -> None:
         self.data_source = data_source
+        self.tags = tags
         self.order = order
         self.generator = generator
 
+        assert len(self.tags) == len(self.data_source), "Tags and data source must have the same length"
+
     def __iter__(self) -> Iterator[int]:
-        n = len(self.data_source)
         if self.generator is None:
             seed = int(torch.empty((), dtype=torch.int64).random_().item())
             generator = torch.Generator()
@@ -101,7 +102,7 @@ class CurriculumSampler(Sampler[int]):
 
         # filter by tag, iterate through each subset, sampling until subset is exhausted
         for tag in self.order:
-            subset = [i for i in range(len(self.data_source)) if self.data_source[i]["tag"] == tag]
+            subset = [i for i in range(len(self.data_source)) if self.tags[i] == tag]
             # Create random permutation of subset indices and yield the actual dataset indices
             if subset:
                 perm = torch.randperm(len(subset), generator=generator)
@@ -122,6 +123,7 @@ class CustomTrainer(SFTTrainer):
         aux_loss_type: AuxLossType | None = None,
         aux_loss_collected_activations_path: str | None = None,
         train_order: list[str] | None = None,
+        train_tags: list[str] | None = None,
         *args,
         **kwargs,
     ):
@@ -136,6 +138,7 @@ class CustomTrainer(SFTTrainer):
         self.aux_loss_type = aux_loss_type
         self.aux_loss_collected_activations_path = aux_loss_collected_activations_path
         self.train_order = train_order
+        self.train_tags = train_tags
 
     def compute_loss(
         self,
@@ -287,7 +290,7 @@ class CustomTrainer(SFTTrainer):
             generator.manual_seed(self.args.data_seed)
         
         if self.train_order is not None:
-            return CurriculumSampler(self.train_dataset, order=self.train_order, generator=generator)
+            return CurriculumSampler(self.train_dataset, tags=self.train_tags, order=self.train_order, generator=generator)
 
         # Build the sampler.
         if self.args.group_by_length:
