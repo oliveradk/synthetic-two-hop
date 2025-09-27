@@ -42,6 +42,7 @@ class CustomArgs:
     aux_loss_type: AuxLossType | None = None
     layer_range: str | None = None  # e.g. "0-12"
     wandb_project: str = "latent_reasoning"
+    load_weights_from: str | None = None  # Path to load model weights from
 
     def __post_init__(self):
         assert os.path.exists(self.experiment_config_path), (
@@ -131,6 +132,12 @@ def run_hf_finetuning(
         print(f"Loaded {dataset_name=} with {len(dataset)=}")
 
     train_dataset = concatenate_datasets(list(train_datasets.values()))  # type: ignore
+
+    if hasattr(custom_args, "train_iterleve_dataset"):
+        from datasets import interleave_datasets
+        sft_dataset = load_dataset(custom_args["train_iterleve_dataset"], split="train", streaming=True)
+        train_dataset = interleave_datasets([train_dataset, sft_dataset], probabilities=[0.5, 0.5], seed=42)
+        
     print(f"Concatenated datasets into one with {len(train_dataset)=}")
 
     eval_dataset = load_dataset(
@@ -195,6 +202,35 @@ def run_hf_finetuning(
         aux_loss_target_layer=custom_args["aux_loss_target_layer"],
         aux_loss_type=custom_args["aux_loss_type"],
     )
+
+    # Load model weights if specified
+    if custom_args.load_weights_from:
+        weights_path = custom_args.load_weights_from
+        if os.path.exists(weights_path):
+            print(f"Loading model weights from {weights_path}")
+            state_dict = torch.load(weights_path, map_location="cpu")
+
+            # Handle both full checkpoint and weights-only formats
+            if "model_state_dict" in state_dict:
+                model_state_dict = state_dict["model_state_dict"]
+            elif "state_dict" in state_dict:
+                model_state_dict = state_dict["state_dict"]
+            else:
+                model_state_dict = state_dict
+
+            # Load weights, ignoring missing/unexpected keys for flexibility
+            missing_keys, unexpected_keys = trainer.model.load_state_dict(
+                model_state_dict, strict=False
+            )
+
+            if missing_keys:
+                print(f"Warning: Missing keys when loading weights: {missing_keys[:5]}...")
+            if unexpected_keys:
+                print(f"Warning: Unexpected keys when loading weights: {unexpected_keys[:5]}...")
+
+            print(f"Successfully loaded model weights from {weights_path}")
+        else:
+            raise FileNotFoundError(f"Weights file not found: {weights_path}")
 
     # Freeze all layers except the ones in layer_range
     layer_range = custom_args.layer_range
